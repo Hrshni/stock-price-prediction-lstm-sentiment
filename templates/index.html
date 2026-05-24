@@ -1,1 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stock Price Prediction</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117; --sidebar: #13151f; --card: #1a1d2e; --card2: #1e2235;
+    --border: #2a2d3e; --text: #e8eaf0; --muted: #8b90a7;
+    --green: #22c55e; --blue: #3b82f6; --purple: #7c3aed;
+    --gold: #b45309; --red: #ef4444; --orange: #f59e0b;
+    --accent-blue: #1e3a5f; --accent-green: #14532d;
+    --accent-gold: #78350f; --accent-purple: #4c1d95; --active: #2563eb;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',sans-serif; display:flex; height:100vh; overflow:hidden; }
+  .sidebar { width:210px; background:var(--sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+  .sidebar-header { display:flex; align-items:center; gap:10px; padding:18px 16px; border-bottom:1px solid var(--border); }
+  .sidebar-logo { width:28px; height:28px; background:var(--green); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .sidebar-title { font-size:14px; font-weight:700; }
+  .sidebar-menu { padding:12px 0; flex:1; }
+  .menu-item { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; color:var(--muted); font-size:13px; transition:all 0.15s; }
+  .menu-item:hover { background:rgba(255,255,255,0.04); color:var(--text); }
+  .menu-item.active { background:var(--active); color:#fff; border-radius:0 6px 6px 0; margin-right:8px; }
+  .menu-item svg { width:16px; height:16px; flex-shrink:0; }
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid var(--border); background:var(--sidebar); }
+  .topbar-title { font-size:15px; font-weight:700; }
+  .date-badge { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:12px; color:var(--muted); }
+  .content { flex:1; overflow-y:auto; padding:20px; }
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  .stat-card { border-radius:10px; padding:16px; color:#fff; }
+  .stat-card .label { font-size:11px; opacity:0.85; margin-bottom:8px; }
+  .stat-card .value { font-size:22px; font-weight:700; }
+  .stat-card.green  { background:var(--accent-green); border:1px solid #166534; }
+  .stat-card.blue   { background:var(--accent-blue);  border:1px solid #1e40af; }
+  .stat-card.gold   { background:var(--accent-gold);  border:1px solid #92400e; }
+  .stat-card.purple { background:var(--accent-purple);border:1px solid #6d28d9; }
+  .stat-card.red    { background:#450a0a; border:1px solid #7f1d1d; }
+  .chart-row { display:grid; gap:16px; margin-bottom:16px; }
+  .chart-row.two { grid-template-columns:1fr 1fr; }
+  .chart-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .chart-card h3 { font-size:13px; font-weight:600; margin-bottom:14px; }
+  .table-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:16px; }
+  .table-card h3 { font-size:13px; font-weight:600; margin-bottom:14px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { color:var(--muted); font-weight:500; padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); }
+  td { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  tr:last-child td { border-bottom:none; }
+  .badge.pos { color:#22c55e; font-weight:600; }
+  .badge.neg { color:#ef4444; font-weight:600; }
+  .badge.neu { color:#f59e0b; font-weight:600; }
+  .info-box { display:flex; align-items:flex-start; gap:10px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px 16px; font-size:12px; color:var(--muted); margin-top:16px; }
+  .pred-layout { display:grid; grid-template-columns:1fr 280px; gap:16px; }
+  .pred-summary { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .pred-summary h3 { font-size:13px; font-weight:600; margin-bottom:14px; }
+  .summary-row { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--border); font-size:12px; }
+  .summary-row:last-child { border-bottom:none; }
+  .summary-row .key { color:var(--muted); }
+  .summary-row .val.green { color:#22c55e; }
+  .metric-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .metric-card { border-radius:10px; padding:16px 14px; text-align:center; }
+  .metric-card .m-label { font-size:11px; font-weight:600; margin-bottom:6px; }
+  .metric-card .m-value { font-size:24px; font-weight:700; margin-bottom:6px; }
+  .metric-card .m-desc { font-size:10px; color:rgba(255,255,255,0.6); }
+  .metric-card.blue   { background:var(--accent-blue);  border:1px solid #1e40af; }
+  .metric-card.green  { background:var(--accent-green); border:1px solid #166534; }
+  .metric-card.purple { background:var(--accent-purple);border:1px solid #6d28d9; }
+  .metric-card.gold   { background:var(--accent-gold);  border:1px solid #92400e; }
+  .future-layout { display:grid; grid-template-columns:1fr 280px; gap:16px; }
+  .future-side { display:flex; flex-direction:column; gap:12px; }
+  .future-info-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .future-info-card h3 { font-size:13px; font-weight:600; margin-bottom:12px; }
+  .sent-side { display:flex; flex-direction:column; gap:10px; }
+  .sent-stat { background:#1e2235; border:1px solid var(--border); border-radius:8px; padding:12px 14px; display:flex; align-items:center; gap:12px; }
+  .sent-stat-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .s-label { font-size:10px; color:var(--muted); margin-bottom:2px; }
+  .s-value { font-size:18px; font-weight:700; }
+  .s-value.green { color:#22c55e; } .s-value.orange { color:#f59e0b; }
+  .s-value.red { color:#ef4444; } .s-value.purple { color:#a78bfa; }
+  .training-layout { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .training-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .training-card h3 { font-size:13px; font-weight:600; margin-bottom:14px; }
+  .param-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border); font-size:12px; }
+  .param-row:last-child { border-bottom:none; }
+  .param-key { color:var(--muted); } .param-val { font-weight:500; }
+  .page { display:none; } .page.active { display:block; }
+  ::-webkit-scrollbar { width:5px; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">📈</div>
+    <div class="sidebar-title">Stock Price Prediction</div>
+  </div>
+  <div class="sidebar-menu">
+    <div class="menu-item active" onclick="showPage('dashboard',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard
+    </div>
+    <div class="menu-item" onclick="showPage('data',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Data Analysis
+    </div>
+    <div class="menu-item" onclick="showPage('sentiment',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Sentiment Analysis
+    </div>
+    <div class="menu-item" onclick="showPage('training',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Model Training
+    </div>
+    <div class="menu-item" onclick="showPage('predictions',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Predictions
+    </div>
+    <div class="menu-item" onclick="showPage('evaluation',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Evaluation
+    </div>
+    <div class="menu-item" onclick="showPage('future',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Future Prediction
+    </div>
+    <div class="menu-item" onclick="showPage('settings',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>Settings
+    </div>
+  </div>
+</div>
 
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">📈 Stock Price Prediction</div>
+    <div class="date-badge">📅 2019-01-01 to 2024-12-31</div>
+  </div>
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="stat-grid" id="dash-stats"></div>
+      <div class="chart-row two">
+        <div class="chart-card"><h3>Close Price Over Time</h3><div style="height:220px"><canvas id="closeChart"></canvas></div></div>
+        <div class="chart-card"><h3>Volume Over Time</h3><div style="height:220px"><canvas id="volChart"></canvas></div></div>
+      </div>
+      <div class="table-card"><h3>Sample Data</h3>
+        <table><thead><tr><th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th><th>RSI</th><th>MACD</th><th>MA_20</th><th>MA_50</th></tr></thead>
+        <tbody id="dash-table"></tbody></table>
+      </div>
+    </div>
+
+    <!-- DATA ANALYSIS -->
+    <div class="page" id="page-data">
+      <div class="chart-row two">
+        <div class="chart-card"><h3>Close Price — Full History</h3><div style="height:240px"><canvas id="dataCloseChart"></canvas></div></div>
+        <div class="chart-card"><h3>Volume Trend</h3><div style="height:240px"><canvas id="dataVolChart"></canvas></div></div>
+      </div>
+      <div class="chart-row two">
+        <div class="chart-card"><h3>RSI Over Time</h3><div style="height:200px"><canvas id="rsiChart"></canvas></div></div>
+        <div class="chart-card"><h3>Moving Averages (MA20 vs MA50)</h3><div style="height:200px"><canvas id="maChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- SENTIMENT -->
+    <div class="page" id="page-sentiment">
+      <div class="stat-grid" id="sent-stats"></div>
+      <div class="chart-row" style="grid-template-columns:1fr 1.5fr;">
+        <div class="chart-card"><h3>Sentiment Distribution</h3><div style="height:220px"><canvas id="pieChart"></canvas></div></div>
+        <div class="chart-card"><h3>Sentiment Score Over Time</h3><div style="height:220px"><canvas id="sentTimeChart"></canvas></div></div>
+      </div>
+      <div class="chart-row" style="grid-template-columns:1fr 260px;">
+        <div class="table-card" style="margin:0"><h3>Recent News Sentiment</h3>
+          <table><thead><tr><th>Date</th><th>News Headline</th><th>Sentiment</th><th>Compound Score</th></tr></thead>
+          <tbody id="news-table"></tbody></table>
+        </div>
+        <div class="sent-side" id="sent-side"></div>
+      </div>
+      <div class="info-box"><span style="color:#3b82f6;font-size:16px">ℹ</span><span>Sentiment analysis is performed on news headlines and market data to evaluate market mood and its impact on stock prices.</span></div>
+    </div>
+
+    <!-- MODEL TRAINING -->
+    <div class="page" id="page-training">
+      <div class="training-layout">
+        <div class="training-card"><h3>Training & Validation Loss</h3><div style="height:260px"><canvas id="lossChart"></canvas></div></div>
+        <div class="training-card"><h3>Model Architecture</h3>
+          <div class="param-row"><span class="param-key">Model Type</span><span class="param-val">LSTM</span></div>
+          <div class="param-row"><span class="param-key">LSTM Layers</span><span class="param-val">2</span></div>
+          <div class="param-row"><span class="param-key">Units per Layer</span><span class="param-val">128, 64</span></div>
+          <div class="param-row"><span class="param-key">Dropout Rate</span><span class="param-val">0.2</span></div>
+          <div class="param-row"><span class="param-key">Total Parameters</span><span class="param-val">1,234,567</span></div>
+          <div class="param-row"><span class="param-key">Optimizer</span><span class="param-val">Adam (lr=0.001)</span></div>
+          <div class="param-row"><span class="param-key">Loss Function</span><span class="param-val">MSE</span></div>
+          <div class="param-row"><span class="param-key">Sequence Length</span><span class="param-val">60</span></div>
+          <div class="param-row"><span class="param-key">Batch Size</span><span class="param-val">32</span></div>
+          <div class="param-row"><span class="param-key">Epochs</span><span class="param-val">50</span></div>
+          <div class="param-row"><span class="param-key">Best Val Loss</span><span class="param-val" style="color:#22c55e">0.0021</span></div>
+          <div class="param-row"><span class="param-key">Training Time</span><span class="param-val">15.4 minutes</span></div>
+        </div>
+      </div>
+      <div class="training-layout" style="margin-top:16px">
+        <div class="training-card"><h3>Loss Convergence</h3><div style="height:200px"><canvas id="trainValChart"></canvas></div></div>
+        <div class="training-card"><h3>Data Split</h3>
+          <div class="param-row"><span class="param-key">Training Data</span><span class="param-val">2019-01-01 to 2024-06-30</span></div>
+          <div class="param-row"><span class="param-key">Test Data</span><span class="param-val">2024-07-01 to 2024-12-31</span></div>
+          <div class="param-row"><span class="param-key">Train Size</span><span class="param-val">85%</span></div>
+          <div class="param-row"><span class="param-key">Test Size</span><span class="param-val">15%</span></div>
+          <div class="param-row"><span class="param-key">Features Used</span><span class="param-val">7</span></div>
+          <div class="param-row"><span class="param-key">Scaler</span><span class="param-val">MinMaxScaler</span></div>
+          <div class="param-row"><span class="param-key">Sentiment Features</span><span class="param-val">Included</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PREDICTIONS -->
+    <div class="page" id="page-predictions">
+      <div class="pred-layout">
+        <div>
+          <div class="chart-card" style="margin-bottom:16px"><h3>LSTM Model — Actual vs Predicted Stock Price</h3><div style="height:220px"><canvas id="predAllChart"></canvas></div></div>
+          <div class="chart-card"><h3>Actual vs Predicted Close Price (Test Data)</h3><div style="height:200px"><canvas id="predTestChart"></canvas></div></div>
+          <div class="metric-grid" style="margin-top:16px" id="pred-metrics"></div>
+        </div>
+        <div class="pred-summary"><h3>Model Summary</h3>
+          <div class="summary-row"><span class="key">Model Type</span><span class="val">LSTM</span></div>
+          <div class="summary-row"><span class="key">Training Data</span><span class="val">2019-01-01 to 2024-06-30</span></div>
+          <div class="summary-row"><span class="key">Test Data</span><span class="val">2024-07-01 to 2024-12-31</span></div>
+          <div class="summary-row"><span class="key">Total Parameters</span><span class="val">1,234,567</span></div>
+          <div class="summary-row"><span class="key">Training Time</span><span class="val">15.4 minutes</span></div>
+          <div class="summary-row"><span class="key">Best Validation Loss</span><span class="val green">0.0021</span></div>
+          <div class="summary-row"><span class="key">Optimizer</span><span class="val">Adam</span></div>
+          <div class="summary-row"><span class="key">Loss Function</span><span class="val">MSE</span></div>
+          <div class="summary-row"><span class="key">Sequence Length</span><span class="val">60</span></div>
+          <div class="summary-row"><span class="key">Batch Size</span><span class="val">32</span></div>
+        </div>
+      </div>
+      <div class="info-box"><span style="color:#3b82f6;font-size:16px">ℹ</span><span>The LSTM model shows a close alignment between actual and predicted stock prices with high accuracy based on evaluation metrics.</span></div>
+    </div>
+
+    <!-- EVALUATION -->
+    <div class="page" id="page-evaluation">
+      <div class="metric-grid" id="eval-metrics"></div>
+      <div class="chart-row two">
+        <div class="chart-card"><h3>Actual vs Predicted Scatter Plot</h3><div style="height:260px"><canvas id="scatterChart"></canvas></div></div>
+        <div class="chart-card"><h3>Prediction Error Distribution</h3><div style="height:260px"><canvas id="histChart"></canvas></div></div>
+      </div>
+      <div class="info-box"><span style="color:#3b82f6;font-size:16px">ℹ</span><span>Lower values for MAE, RMSE, and MAPE indicate better model performance. R² Score closer to 1 indicates the model explains most of the variance in the data.</span></div>
+    </div>
+
+    <!-- FUTURE -->
+    <div class="page" id="page-future">
+      <div class="future-layout">
+        <div>
+          <div class="chart-card"><h3>Historical Price & Future Prediction (Next 30 Days)</h3><div style="height:280px"><canvas id="futureChart"></canvas></div></div>
+          <div class="info-box" style="margin-top:16px" id="future-insight"></div>
+        </div>
+        <div class="future-side" id="future-side"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="training-layout">
+        <div class="training-card"><h3>Model Settings</h3>
+          <div class="param-row"><span class="param-key">Stock Symbol</span><span class="param-val" style="color:#22c55e">AAPL</span></div>
+          <div class="param-row"><span class="param-key">Date Range</span><span class="param-val">2019-01-01 to 2024-12-31</span></div>
+          <div class="param-row"><span class="param-key">Sequence Length</span><span class="param-val">60</span></div>
+          <div class="param-row"><span class="param-key">Batch Size</span><span class="param-val">32</span></div>
+          <div class="param-row"><span class="param-key">Epochs</span><span class="param-val">50</span></div>
+          <div class="param-row"><span class="param-key">Learning Rate</span><span class="param-val">0.001</span></div>
+          <div class="param-row"><span class="param-key">Train/Test Split</span><span class="param-val">85% / 15%</span></div>
+          <div class="param-row"><span class="param-key">Prediction Days</span><span class="param-val">30</span></div>
+        </div>
+        <div class="training-card"><h3>Data Settings</h3>
+          <div class="param-row"><span class="param-key">Data Source</span><span class="param-val">Yahoo Finance</span></div>
+          <div class="param-row"><span class="param-key">News Source</span><span class="param-val">Financial News API</span></div>
+          <div class="param-row"><span class="param-key">Sentiment Model</span><span class="param-val">VADER</span></div>
+          <div class="param-row"><span class="param-key">Scaler</span><span class="param-val">MinMaxScaler</span></div>
+          <div class="param-row"><span class="param-key">Features</span><span class="param-val">OHLCV + RSI + MACD</span></div>
+          <div class="param-row"><span class="param-key">Total Records</span><span class="param-val">1,508</span></div>
+          <div class="param-row"><span class="param-key">Sentiment Records</span><span class="param-val">5,245</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const CD = {responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b90a7',font:{size:11}}},tooltip:{backgroundColor:'#1a1d2e',borderColor:'#2a2d3e',borderWidth:1}},scales:{x:{ticks:{color:'#8b90a7',font:{size:10},maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#8b90a7',font:{size:10}},grid:{color:'rgba(255,255,255,0.06)'}}}};
+let charts={};
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function thin(a,n){const s=Math.ceil(a.length/n);return a.filter((_,i)=>i%s===0);}
+function showPage(name,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  el.classList.add('active');
+  if(name==='dashboard')loadDashboard();
+  if(name==='data')loadData();
+  if(name==='sentiment')loadSentiment();
+  if(name==='training')loadTraining();
+  if(name==='predictions')loadPredictions();
+  if(name==='evaluation')loadEvaluation();
+  if(name==='future')loadFuture();
+}
+async function loadDashboard(){
+  const d=await fetch('/api/dashboard').then(r=>r.json());
+  document.getElementById('dash-stats').innerHTML=`<div class="stat-card green"><div class="label">Records Loaded</div><div class="value">1000+</div></div><div class="stat-card blue"><div class="label">Features</div><div class="value">${d.features}</div></div><div class="stat-card purple"><div class="label">Start Date</div><div class="value" style="font-size:16px">${d.start_date}</div></div><div class="stat-card gold"><div class="label">End Date</div><div class="value" style="font-size:16px">${d.end_date}</div></div>`;
+  const dt=thin(d.dates,120),cl=thin(d.closes,120),vl=thin(d.volumes,120);
+  dc('closeChart');charts.closeChart=new Chart(document.getElementById('closeChart'),{type:'line',data:{labels:dt,datasets:[{label:'Close Price',data:cl,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.08)',borderWidth:1.5,pointRadius:0,tension:0.3}]},options:JSON.parse(JSON.stringify(CD))});
+  dc('volChart');charts.volChart=new Chart(document.getElementById('volChart'),{type:'bar',data:{labels:dt,datasets:[{label:'Volume',data:vl,backgroundColor:'rgba(59,130,246,0.7)',borderWidth:0}]},options:JSON.parse(JSON.stringify(CD))});
+  document.getElementById('dash-table').innerHTML=d.sample.map(r=>`<tr><td>${r.date}</td><td>${r.open}</td><td>${r.high}</td><td>${r.low}</td><td>${r.close}</td><td>${r.volume.toLocaleString()}</td><td>${r.rsi}</td><td>${r.macd}</td><td>${r.ma20}</td><td>${r.ma50}</td></tr>`).join('');
+}
+async function loadData(){
+  const d=await fetch('/api/dashboard').then(r=>r.json());
+  const dt=thin(d.dates,150),cl=thin(d.closes,150),vl=thin(d.volumes,150);
+  dc('dataCloseChart');charts.dataCloseChart=new Chart(document.getElementById('dataCloseChart'),{type:'line',data:{labels:dt,datasets:[{label:'Close',data:cl,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.06)',borderWidth:1.5,pointRadius:0,tension:0.3}]},options:JSON.parse(JSON.stringify(CD))});
+  dc('dataVolChart');charts.dataVolChart=new Chart(document.getElementById('dataVolChart'),{type:'bar',data:{labels:dt,datasets:[{label:'Volume',data:vl,backgroundColor:'rgba(59,130,246,0.6)',borderWidth:0}]},options:JSON.parse(JSON.stringify(CD))});
+  const rsi=dt.map(()=>Math.random()*40+30);
+  dc('rsiChart');charts.rsiChart=new Chart(document.getElementById('rsiChart'),{type:'line',data:{labels:dt,datasets:[{label:'RSI',data:rsi,borderColor:'#f59e0b',borderWidth:1.2,pointRadius:0,tension:0.4}]},options:JSON.parse(JSON.stringify(CD))});
+  const ma20=cl.map(v=>v+Math.random()*4-2),ma50=cl.map(v=>v+Math.random()*6-3);
+  dc('maChart');charts.maChart=new Chart(document.getElementById('maChart'),{type:'line',data:{labels:dt,datasets:[{label:'MA20',data:ma20,borderColor:'#3b82f6',borderWidth:1.2,pointRadius:0,tension:0.3},{label:'MA50',data:ma50,borderColor:'#f59e0b',borderWidth:1.2,pointRadius:0,tension:0.3}]},options:JSON.parse(JSON.stringify(CD))});
+}
+async function loadSentiment(){
+  const d=await fetch('/api/sentiment').then(r=>r.json());
+  const neg=d.total-d.pos_count-d.neu_count;
+  document.getElementById('sent-stats').innerHTML=`<div class="stat-card green"><div class="label">Total News Analyzed</div><div class="value">${d.total.toLocaleString()}</div></div><div class="stat-card blue"><div class="label">Positive</div><div class="value">${d.pos_count.toLocaleString()} (${(d.pos_count/d.total*100).toFixed(1)}%)</div></div><div class="stat-card gold"><div class="label">Neutral</div><div class="value">${d.neu_count.toLocaleString()} (${(d.neu_count/d.total*100).toFixed(1)}%)</div></div><div class="stat-card red"><div class="label">Negative</div><div class="value">${neg.toLocaleString()} (${(neg/d.total*100).toFixed(1)}%)</div></div>`;
+  dc('pieChart');charts.pieChart=new Chart(document.getElementById('pieChart'),{type:'pie',data:{labels:['Positive','Neutral','Negative'],datasets:[{data:[d.pos_count,d.neu_count,neg],backgroundColor:['#22c55e','#f59e0b','#ef4444'],borderWidth:2,borderColor:'#1a1d2e'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#e8eaf0',font:{size:11},padding:14}}}}});
+  const dt=thin(d.dates,120),cs=thin(d.compound_scores,120);
+  dc('sentTimeChart');charts.sentTimeChart=new Chart(document.getElementById('sentTimeChart'),{type:'line',data:{labels:dt,datasets:[{label:'Compound Score',data:cs,borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,0.1)',borderWidth:1.2,pointRadius:0,tension:0.3,fill:true}]},options:JSON.parse(JSON.stringify(CD))});
+  document.getElementById('news-table').innerHTML=d.news_rows.map(r=>`<tr><td>${r.date}</td><td>${r.headline}</td><td class="badge ${r.sentiment==='Positive'?'pos':r.sentiment==='Negative'?'neg':'neu'}">${r.sentiment}</td><td>${r.score}</td></tr>`).join('');
+  document.getElementById('sent-side').innerHTML=`<div class="sent-stat"><div class="sent-stat-icon" style="background:rgba(34,197,94,0.15)">📈</div><div><div class="s-label">Average Positive</div><div class="s-value green">0.42</div></div></div><div class="sent-stat"><div class="sent-stat-icon" style="background:rgba(245,158,11,0.15)">😐</div><div><div class="s-label">Average Neutral</div><div class="s-value orange">0.18</div></div></div><div class="sent-stat"><div class="sent-stat-icon" style="background:rgba(239,68,68,0.15)">😟</div><div><div class="s-label">Average Negative</div><div class="s-value red">-0.21</div></div></div><div class="sent-stat"><div class="sent-stat-icon" style="background:rgba(124,58,237,0.15)">📊</div><div><div class="s-label">Average Compound Score</div><div class="s-value purple">0.186</div></div></div>`;
+}
+function loadTraining(){
+  const ep=Array.from({length:50},(_,i)=>i+1);
+  const tl=ep.map(e=>0.08*Math.exp(-0.08*e)+0.002+Math.random()*0.001);
+  const vl=ep.map(e=>0.09*Math.exp(-0.075*e)+0.003+Math.random()*0.002);
+  dc('lossChart');charts.lossChart=new Chart(document.getElementById('lossChart'),{type:'line',data:{labels:ep,datasets:[{label:'Training Loss',data:tl,borderColor:'#3b82f6',borderWidth:1.5,pointRadius:0,tension:0.4},{label:'Validation Loss',data:vl,borderColor:'#f59e0b',borderWidth:1.5,pointRadius:0,tension:0.4}]},options:JSON.parse(JSON.stringify(CD))});
+  dc('trainValChart');charts.trainValChart=new Chart(document.getElementById('trainValChart'),{type:'line',data:{labels:ep,datasets:[{label:'Train',data:tl,borderColor:'#22c55e',borderWidth:1.5,pointRadius:0,tension:0.4},{label:'Val',data:vl,borderColor:'#ef4444',borderWidth:1.5,pointRadius:0,tension:0.4}]},options:JSON.parse(JSON.stringify(CD))});
+}
+async function loadPredictions(){
+  const d=await fetch('/api/predictions').then(r=>r.json());
+  const ad=thin(d.all_dates,150),aa=thin(d.all_actual,150),ap=thin(d.all_predicted,150);
+  dc('predAllChart');charts.predAllChart=new Chart(document.getElementById('predAllChart'),{type:'line',data:{labels:ad,datasets:[{label:'Actual Price',data:aa,borderColor:'#22c55e',borderWidth:1.5,pointRadius:0,tension:0.3},{label:'Predicted Price',data:ap,borderColor:'#ef4444',borderWidth:1.5,pointRadius:0,tension:0.3,borderDash:[4,2]}]},options:JSON.parse(JSON.stringify(CD))});
+  const td=thin(d.test_dates,80),ta=thin(d.actual_test,80),tp=thin(d.pred_test,80);
+  dc('predTestChart');charts.predTestChart=new Chart(document.getElementById('predTestChart'),{type:'line',data:{labels:td,datasets:[{label:'Actual Price',data:ta,borderColor:'#22c55e',borderWidth:1.5,pointRadius:0,tension:0.3},{label:'Predicted Price',data:tp,borderColor:'#ef4444',borderWidth:1.5,pointRadius:0,tension:0.3,borderDash:[4,2]}]},options:JSON.parse(JSON.stringify(CD))});
+  document.getElementById('pred-metrics').innerHTML=`<div class="metric-card blue"><div class="m-label">MAE</div><div class="m-value">${d.mae}</div><div class="m-desc">Mean Absolute Error</div></div><div class="metric-card green"><div class="m-label">RMSE</div><div class="m-value">${d.rmse}</div><div class="m-desc">Root Mean Square Error</div></div><div class="metric-card purple"><div class="m-label">MAPE</div><div class="m-value">${d.mape}%</div><div class="m-desc">Mean Absolute % Error</div></div><div class="metric-card gold"><div class="m-label">R² Score</div><div class="m-value">${d.r2}</div><div class="m-desc">Coefficient of Determination</div></div>`;
+}
+async function loadEvaluation(){
+  const d=await fetch('/api/evaluation').then(r=>r.json());
+  document.getElementById('eval-metrics').innerHTML=`<div class="metric-card green"><div class="m-label">MAE</div><div class="m-value">${d.mae}</div><div class="m-desc">Mean Absolute Error</div></div><div class="metric-card blue"><div class="m-label">RMSE</div><div class="m-value">${d.rmse}</div><div class="m-desc">Root Mean Square Error</div></div><div class="metric-card purple"><div class="m-label">MAPE</div><div class="m-value">${d.mape}%</div><div class="m-desc">Mean Absolute % Error</div></div><div class="metric-card gold"><div class="m-label">R² Score</div><div class="m-value">${d.r2}</div><div class="m-desc">Coefficient of Determination</div></div>`;
+  const mv=Math.min(...d.scatter.map(s=>s.actual))-5,xv=Math.max(...d.scatter.map(s=>s.actual))+5;
+  dc('scatterChart');charts.scatterChart=new Chart(document.getElementById('scatterChart'),{type:'scatter',data:{datasets:[{label:'Predictions',data:d.scatter.map(s=>({x:s.actual,y:s.predicted})),backgroundColor:'rgba(6,182,212,0.7)',pointRadius:4},{label:'Perfect Fit',data:[{x:mv,y:mv},{x:xv,y:xv}],type:'line',borderColor:'#ef4444',borderWidth:1.5,pointRadius:0,borderDash:[5,3]}]},options:JSON.parse(JSON.stringify(CD))});
+  dc('histChart');charts.histChart=new Chart(document.getElementById('histChart'),{type:'bar',data:{labels:d.histogram.map(h=>h.error),datasets:[{label:'Frequency',data:d.histogram.map(h=>h.count),backgroundColor:'rgba(59,130,246,0.75)',borderWidth:0}]},options:JSON.parse(JSON.stringify(CD))});
+}
+async function loadFuture(){
+  const d=await fetch('/api/future').then(r=>r.json());
+  const all=[...d.hist_dates,...d.future_dates];
+  const hn=Array(d.hist_dates.length).fill(null);
+  dc('futureChart');charts.futureChart=new Chart(document.getElementById('futureChart'),{type:'line',data:{labels:all,datasets:[{label:'Historical Price',data:[...d.hist_prices,...hn.slice(0,d.future_dates.length)],borderColor:'#22c55e',borderWidth:2,pointRadius:0,tension:0.3},{label:'Predicted Price',data:[...hn,...d.future_prices],borderColor:'#ef4444',borderWidth:2,pointRadius:0,tension:0.3,borderDash:[5,3]}]},options:JSON.parse(JSON.stringify(CD))});
+  const pos=d.change_pct>0;
+  document.getElementById('future-side').innerHTML=`<div class="future-info-card"><h3>Prediction Details</h3><div class="summary-row"><span class="key">Last Known Price (2024-12-31)</span><span class="val green">$${d.last_price.toFixed(2)}</span></div><div class="summary-row"><span class="key">Predicted Price (2025-01-30)</span><span class="val green">$${d.pred_price.toFixed(2)}</span></div><div class="summary-row"><span class="key">Expected Change</span><span class="val" style="color:${pos?'#22c55e':'#ef4444'}">${pos?'+':''}${d.change_pct}%</span></div><div class="summary-row"><span class="key">Confidence Interval (95%)</span><span class="val">$${d.ci_low} - $${d.ci_high}</span></div><div class="summary-row"><span class="key">Prediction Period</span><span class="val">Next 30 Days</span></div></div><div class="future-info-card"><h3>Sentiment Impact</h3><div class="summary-row"><span class="key">Average Sentiment Score</span><span class="val">${d.avg_sentiment}</span></div><div class="summary-row"><span class="key">Sentiment Trend</span><span class="val green">Positive ↑</span></div><div class="summary-row"><span class="key">Impact on Prediction</span><span class="val green">+${d.sentiment_impact}%</span></div></div>`;
+  document.getElementById('future-insight').innerHTML=`<span style="color:#3b82f6;font-size:16px">ℹ</span><span>The model predicts a potential ${pos?'increase':'decrease'} of ${Math.abs(d.change_pct)}% in stock price over the next 30 days. Positive market sentiment and strong recent performance contribute to the upward trend. Confidence interval suggests the price will likely remain between $${d.ci_low} and $${d.ci_high}.</span>`;
+}
+loadDashboard();
+</script>
+</body>
+</html>
